@@ -22,13 +22,11 @@ AMAZON_AFFILIATE_TAG = os.environ.get('AMAZON_TAG')
 def convert_amazon_link(url):
     """Convert any Amazon link to include affiliate tag"""
     try:
-        # Extract ASIN from Amazon URL
         asin_match = re.search(r'/dp/([A-Z0-9]{10})', url)
         if asin_match:
             asin = asin_match.group(1)
             return f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE_TAG}"
         
-        # If no ASIN found, just add tag parameter
         separator = '&' if '?' in url else '?'
         return f"{url}{separator}tag={AMAZON_AFFILIATE_TAG}"
     except Exception as e:
@@ -37,13 +35,18 @@ def convert_amazon_link(url):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
-    welcome_message = """🤖 **Affiliate Bot is Active!**
+    welcome_message = """🤖 **Affiliate Bot Active - 15 Min Session!**
     
 ✅ Running on GitHub Actions
-🕐 Scheduled operation: 1PM, 6PM, 9PM IST
-💡 Send me Amazon links to convert them!
+🕐 **Schedule:** 10AM, 1PM, 6PM, 9PM IST
+⏱️ **Duration:** 15 minutes per session
+💡 Send Amazon links for instant conversion!
 
-Just paste any Amazon product link and I'll convert it with your affiliate tag."""
+**Daily Schedule:**
+• 10:00-10:15 AM IST
+• 1:00-1:15 PM IST  
+• 6:00-6:15 PM IST
+• 9:00-9:15 PM IST"""
     
     await update.message.reply_text(welcome_message, parse_mode='Markdown')
 
@@ -54,11 +57,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
     
-    # Check if message contains Amazon link
     if 'amazon.' in text.lower():
         logger.info(f"Processing Amazon link: {text}")
         
-        # Convert the link
         converted_link = convert_amazon_link(text)
         
         # Create attractive message for channel
@@ -72,14 +73,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #AmazonDeals #Affiliate"""
         
         try:
-            # Send to channel
             await context.bot.send_message(
                 chat_id=CHANNEL_ID,
                 text=channel_message,
                 parse_mode='Markdown'
             )
             
-            # Confirm to user
             await update.message.reply_text(
                 f"✅ **Link converted and posted!**\n\n🔗 Converted: `{converted_link}`",
                 parse_mode='Markdown'
@@ -92,32 +91,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(error_msg)
             logger.error(f"Error: {e}")
     else:
-        # Not an Amazon link
         await update.message.reply_text(
             "📎 Please send me an Amazon product link to convert!\n\n"
             "Example: https://www.amazon.in/dp/B08N5WRWNW"
         )
 
 def timeout_handler(signum, frame):
-    """Handle timeout after 30 minutes"""
-    logger.info("⏰ 30-minute session completed - stopping bot gracefully")
+    """Handle timeout after 15 minutes"""
+    logger.info("⏰ 15-minute session completed - stopping bot gracefully")
     exit(0)
 
 def main():
     """Main function to run the bot"""
-    logger.info("🚀 Starting Telegram Affiliate Bot...")
+    logger.info("🚀 Starting 15-minute Telegram Affiliate Bot session...")
     
     # Verify required environment variables
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN not found in environment variables")
-        exit(1)
-    
-    if not CHANNEL_ID:
-        logger.error("CHANNEL_ID not found in environment variables")
-        exit(1)
-        
-    if not AMAZON_AFFILIATE_TAG:
-        logger.error("AMAZON_TAG not found in environment variables")
+    if not all([BOT_TOKEN, CHANNEL_ID, AMAZON_AFFILIATE_TAG]):
+        logger.error("Missing required environment variables")
         exit(1)
     
     # Create application
@@ -127,11 +117,11 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Set up 30-minute timeout
+    # Set up 15-minute timeout
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(1800)  # 1800 seconds = 30 minutes
+    signal.alarm(900)  # 900 seconds = 15 minutes
     
-    logger.info("🎯 Bot will run for exactly 30 minutes...")
+    logger.info("🎯 Bot will run for exactly 15 minutes...")
     logger.info(f"📢 Will post to channel: {CHANNEL_ID}")
     
     # Start the bot
@@ -140,7 +130,7 @@ def main():
     except Exception as e:
         logger.error(f"Bot error: {e}")
     finally:
-        logger.info("🛑 Bot session ended")
+        logger.info("🛑 15-minute session ended")
 
 if __name__ == '__main__':
     main()
