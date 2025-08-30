@@ -1,0 +1,53 @@
+name: Scheduled Telegram Affiliate Bot
+
+# When to run the bot
+on:
+  schedule:
+    # Run 3 times daily (times in UTC, will convert to IST)
+    - cron: '30 7 * * *'   # 1:00 PM IST 
+    - cron: '30 12 * * *'  # 6:00 PM IST  
+    - cron: '30 15 * * *'  # 9:00 PM IST
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  run-affiliate-bot:
+    name: Run Affiliate Bot
+    runs-on: ubuntu-latest
+    timeout-minutes: 35  # Maximum runtime limit
+    
+    steps:
+    # Step 1: Get the code
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      
+    # Step 2: Set up Python
+    - name: 🐍 Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    # Step 3: Install dependencies
+    - name: 📦 Install Dependencies
+      run: |
+        echo "Installing Python packages..."
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        echo "✅ Dependencies installed successfully"
+        
+    # Step 4: Run the bot
+    - name: 🤖 Run Bot for 30 Minutes
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+      run: |
+        echo "🚀 Starting bot session at $(date)"
+        echo "📍 Running from GitHub Actions"
+        echo "⏰ Will run for exactly 30 minutes"
+        
+        # Run bot with timeout (30 minutes = 1800 seconds)
+        timeout 1800 python scheduled_bot.py || echo "⏰ Bot completed 30-minute session successfully"
+        
+        echo "✅ Bot session finished at $(date)"
