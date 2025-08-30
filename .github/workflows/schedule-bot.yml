@@ -1,34 +1,31 @@
 name: Scheduled Telegram Affiliate Bot
 
-# When to run the bot
 on:
   schedule:
-    # Run 3 times daily (times in UTC, will convert to IST)
-    - cron: '30 7 * * *'   # 1:00 PM IST 
-    - cron: '30 12 * * *'  # 6:00 PM IST  
-    - cron: '30 15 * * *'  # 9:00 PM IST
+    # 4 daily sessions of 15 minutes each (times in UTC)
+    - cron: '30 4 * * *'   # 10:00 AM IST (4:30 UTC)
+    - cron: '30 7 * * *'   # 1:00 PM IST (7:30 UTC)  
+    - cron: '30 12 * * *'  # 6:00 PM IST (12:30 UTC)
+    - cron: '30 15 * * *'  # 9:00 PM IST (15:30 UTC)
   
-  # Allow manual trigger
+  # Allow manual trigger for testing
   workflow_dispatch:
 
 jobs:
   run-affiliate-bot:
-    name: Run Affiliate Bot
+    name: Run 15-Minute Affiliate Bot Session
     runs-on: ubuntu-latest
-    timeout-minutes: 35  # Maximum runtime limit
+    timeout-minutes: 20  # Safety limit (15 min + 5 min buffer)
     
     steps:
-    # Step 1: Get the code
     - name: 📥 Checkout Repository
       uses: actions/checkout@v4
       
-    # Step 2: Set up Python
     - name: 🐍 Set up Python 3.11
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    # Step 3: Install dependencies
     - name: 📦 Install Dependencies
       run: |
         echo "Installing Python packages..."
@@ -36,18 +33,18 @@ jobs:
         pip install -r requirements.txt
         echo "✅ Dependencies installed successfully"
         
-    # Step 4: Run the bot
-    - name: 🤖 Run Bot for 30 Minutes
+    - name: 🤖 Run Bot for 15 Minutes
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
       run: |
-        echo "🚀 Starting bot session at $(date)"
-        echo "📍 Running from GitHub Actions"
-        echo "⏰ Will run for exactly 30 minutes"
+        echo "🚀 Starting 15-minute bot session at $(date)"
+        echo "📍 Session will run for exactly 15 minutes"
+        echo "🇮🇳 Current IST time: $(TZ='Asia/Kolkata' date)"
         
-        # Run bot with timeout (30 minutes = 1800 seconds)
-        timeout 1800 python scheduled_bot.py || echo "⏰ Bot completed 30-minute session successfully"
+        # Run bot with 15-minute timeout (900 seconds)
+        timeout 900 python scheduled_bot.py || echo "⏰ Bot completed 15-minute session successfully"
         
         echo "✅ Bot session finished at $(date)"
+        echo "🇮🇳 End time IST: $(TZ='Asia/Kolkata' date)"
