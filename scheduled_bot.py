@@ -63,14 +63,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         converted_link = convert_amazon_link(text)
         
         # Create attractive message for channel
-        channel_message = f"""🔥 **Deal Alert!** 🔥
-
-{converted_link}
-
+        channel_message = f"""🔥 DEAL FAM ALERT! 🔥
+        
+🛒 Amazon Link: {converted_link}
+👍Deal Fam Rating: ⭐⭐⭐⭐⭐
 💰 Grab this amazing deal now!
-⏰ Limited time offer!
+⏰ Limited Time: 6 hours left!
 
-#AmazonDeals #Affiliate"""
+#DealFam #iPhoneDeals #AmazonSale #DealFam #DailyDeals#AmazonDeals
+#FlipkartOffers #ShoppingDeals #IndianDeals #SaveMoney"""
         
         try:
             await context.bot.send_message(
