@@ -1,0 +1,147 @@
+name: Scheduled Amazon Link Scraper
+on:
+  schedule:
+    # Run every Sunday at 6:00 AM IST (12:30 AM UTC) to refresh link database
+    - cron: '30 0 * * 0'
+    # Run daily at 3:00 AM IST (9:30 PM UTC) to add new trending products
+    - cron: '30 21 * * *'
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      scrape_mode:
+        description: 'Scraping mode'
+        required: true
+        default: 'trending'
+        type: choice
+        options:
+          - trending
+          - categories
+          - bestsellers
+          - deals
+      max_links:
+        description: 'Maximum links to scrape'
+        required: true
+        default: '25'
+      search_keywords:
+        description: 'Search keywords (comma separated)'
+        required: false
+        default: 'electronics,mobile,laptop,headphones'
+
+jobs:
+  scrape-amazon-links:
+    name: Auto Scrape Amazon Links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: 📦 Install Scraping Dependencies
+      run: |
+        echo "Installing scraping packages..."
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 lxml selenium fake-useragent
+        
+        # Install Chrome for Selenium (if needed)
+        sudo apt-get update
+        sudo apt-get install -y wget unzip
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+        
+        echo "✅ Dependencies installed successfully"
+        
+    - name: 🕐 Determine Scrape Mode
+      id: mode
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "mode=${{ github.event.inputs.scrape_mode }}" >> $GITHUB_OUTPUT
+          echo "max_links=${{ github.event.inputs.max_links }}" >> $GITHUB_OUTPUT
+          echo "keywords=${{ github.event.inputs.search_keywords }}" >> $GITHUB_OUTPUT
+        else
+          # Determine mode based on day of week
+          day_of_week=$(date +%u)
+          if [ $day_of_week -eq 7 ]; then  # Sunday
+            echo "mode=categories" >> $GITHUB_OUTPUT
+            echo "max_links=50" >> $GITHUB_OUTPUT
+          else  # Daily
+            echo "mode=trending" >> $GITHUB_OUTPUT
+            echo "max_links=20" >> $GITHUB_OUTPUT
+          fi
+          echo "keywords=electronics,mobile phones,laptops,headphones,speakers" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 🔍 Run Amazon Link Scraper
+      env:
+        AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+        SCRAPE_MODE: ${{ steps.mode.outputs.mode }}
+        MAX_LINKS: ${{ steps.mode.outputs.max_links }}
+        SEARCH_KEYWORDS: ${{ steps.mode.outputs.keywords }}
+      run: |
+        echo "🚀 Starting Amazon link scraper..."
+        echo "🕐 IST Time: $(TZ='Asia/Kolkata' date)"
+        echo "📊 Mode: $SCRAPE_MODE"
+        echo "🎯 Target: $MAX_LINKS links"
+        echo "🔍 Keywords: $SEARCH_KEYWORDS"
+        
+        python amazon_scraper_scheduled.py
+        
+        echo "✅ Scraping completed at $(TZ='Asia/Kolkata' date)"
+        
+    - name: 📊 Display Scraping Results
+      run: |
+        if [ -f "data/amazon_links.json" ]; then
+          echo "📈 Scraping Results Summary:"
+          python -c "
+          import json
+          with open('data/amazon_links.json', 'r') as f:
+              data = json.load(f)
+              print(f'✅ Total links: {len(data.get(\"links\", []))}')
+              print(f'📅 Last updated: {data.get(\"last_scraped\", \"Unknown\")}')
+              print(f'🏷️ Affiliate tag: {data.get(\"affiliate_tag\", \"Not set\")}')
+              print(f'📊 Scrape mode: {data.get(\"scrape_mode\", \"Unknown\")}')
+          "
+        else
+          echo "❌ No scraping results found"
+        fi
+        
+    - name: 💾 Commit Updated Links
+      run: |
+        git config --local user.email "scraper@github.com"
+        git config --local user.name "Amazon Link Scraper"
+        git add data/
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "ℹ️ No new links found - no changes to commit"
+        else
+          # Count new links
+          new_links=$(git diff --staged data/amazon_links.json | grep -c '+"https://www.amazon.in' || echo "0")
+          git commit -m "🔍 Auto-scraped ${{ steps.mode.outputs.max_links }} Amazon links (${{ steps.mode.outputs.mode }} mode) - Added $new_links new links"
+          git push
+          echo "✅ Committed $new_links new affiliate links"
+        fi
+        
+    - name: 📱 Send Scraper Status (Optional)
+      if: always()
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+        token: ${{ secrets.BOT_TOKEN }}
+        message: |
+          🔍 **Amazon Link Scraper Status**
+          
+          📅 **Time:** $(TZ='Asia/Kolkata' date)
+          📊 **Mode:** ${{ steps.mode.outputs.mode }}
+          🎯 **Target:** ${{ steps.mode.outputs.max_links }} links
+          ✅ **Status:** ${{ job.status }}
+          
+          🔗 **Repository:** ${{ github.repository }}
+          🌐 **Workflow:** ${{ github.workflow }}
