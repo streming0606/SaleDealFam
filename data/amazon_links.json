@@ -1,10 +1,12 @@
 {
   "links": [
-    "https://www.amazon.in/dp/B08N5WRWNW",
-    "https://www.amazon.in/dp/B07HGJKJL2", 
-    "https://www.amazon.in/dp/B08CFSZLQ4",
-    "https://www.amazon.in/dp/B07DJ2K9GS",
-    "https://www.amazon.in/dp/B08BHBQKP7",
-    "...add all your 70+ Amazon product links here..."
-  ]
+    "https://www.amazon.in/dp/B08N5WRWNW?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B07HGJKJL2?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08CFSZLQ4?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08BHBQKP7?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B07DJ2K9GS?tag=gadgetvill09f-21"
+  ],
+  "total_count": 5,
+  "last_scraped": "2025-09-04T18:52:30.450725",
+  "affiliate_tag": "gadgetvill09f-21"
 }
