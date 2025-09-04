@@ -1,21 +1,30 @@
 name: Scheduled Telegram Affiliate Bot
-
 on:
   schedule:
-    # 4 daily sessions of 15 minutes each (times in UTC)
-    - cron: '30 4 * * *'   # 10:00 AM IST (4:30 UTC)
-    - cron: '30 7 * * *'   # 1:00 PM IST (7:30 UTC)  
-    - cron: '30 12 * * *'  # 6:00 PM IST (12:30 UTC)
-    - cron: '30 15 * * *'  # 9:00 PM IST (15:30 UTC)
-  
+    # 4 daily sessions with specific link counts
+    - cron: '42 4 * * *'   # 10:12 AM IST (4:42 UTC) - 3 links
+    - cron: '42 7 * * *'   # 1:12 PM IST (7:42 UTC) - 3 links  
+    - cron: '42 12 * * *'  # 6:12 PM IST (12:42 UTC) - 2 links
+    - cron: '42 15 * * *'  # 9:12 PM IST (15:42 UTC) - 2 links
   # Allow manual trigger for testing
   workflow_dispatch:
+    inputs:
+      session_type:
+        description: 'Session type'
+        required: true
+        default: 'morning'
+        type: choice
+        options:
+          - morning
+          - afternoon
+          - evening
+          - night
 
 jobs:
   run-affiliate-bot:
-    name: Run 15-Minute Affiliate Bot Session
+    name: Run Scheduled Affiliate Bot Session
     runs-on: ubuntu-latest
-    timeout-minutes: 20  # Safety limit (15 min + 5 min buffer)
+    timeout-minutes: 25  # Extended timeout for link processing
     
     steps:
     - name: 📥 Checkout Repository
@@ -33,18 +42,46 @@ jobs:
         pip install -r requirements.txt
         echo "✅ Dependencies installed successfully"
         
-    - name: 🤖 Run Bot for 15 Minutes
+    - name: 🕐 Determine Session Type
+      id: session
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "session_type=${{ github.event.inputs.session_type }}" >> $GITHUB_OUTPUT
+        else
+          # Determine session based on UTC time
+          hour=$(date -u +%H)
+          if [ $hour -eq 4 ]; then
+            echo "session_type=morning" >> $GITHUB_OUTPUT
+          elif [ $hour -eq 7 ]; then
+            echo "session_type=afternoon" >> $GITHUB_OUTPUT
+          elif [ $hour -eq 12 ]; then
+            echo "session_type=evening" >> $GITHUB_OUTPUT
+          elif [ $hour -eq 15 ]; then
+            echo "session_type=night" >> $GITHUB_OUTPUT
+          else
+            echo "session_type=morning" >> $GITHUB_OUTPUT
+          fi
+        fi
+        
+    - name: 🤖 Run Scheduled Bot Session
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+        SESSION_TYPE: ${{ steps.session.outputs.session_type }}
       run: |
-        echo "🚀 Starting 15-minute bot session at $(date)"
-        echo "📍 Session will run for exactly 15 minutes"
+        echo "🚀 Starting ${{ steps.session.outputs.session_type }} session at $(date)"
         echo "🇮🇳 Current IST time: $(TZ='Asia/Kolkata' date)"
         
-        # Run bot with 15-minute timeout (900 seconds)
-        timeout 900 python scheduled_bot.py || echo "⏰ Bot completed 15-minute session successfully"
+        python scheduled_bot.py
         
         echo "✅ Bot session finished at $(date)"
         echo "🇮🇳 End time IST: $(TZ='Asia/Kolkata' date)"
+        
+    - name: 💾 Commit Progress Updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add data/
+        git diff --staged --quiet || git commit -m "Update progress: ${{ steps.session.outputs.session_type }} session completed"
+        git push
