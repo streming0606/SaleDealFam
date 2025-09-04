@@ -9,7 +9,12 @@
     "https://www.amazon.in/dp/B08KFD42GJ",
     "https://www.amazon.in/dp/B07W6CP4W8",
     "https://www.amazon.in/dp/B08444CCPT",
-    "https://www.amazon.in/dp/B07VG5G6DV"
+    "https://www.amazon.in/dp/B07VG5G6DV",
+    "https://www.amazon.in/dp/B08Z74DZ4D",
+    "https://www.amazon.in/dp/B08N5WRWNW",
+    "https://www.amazon.in/dp/B07HGJKJL2",
+    "https://www.amazon.in/dp/B08CFSZLQ4",
+    "https://www.amazon.in/dp/B08BHBQKP7"
   ],
   "affiliate_links": [
     "https://www.amazon.in/dp/B0863TXGM3?tag=gadgetvill09f-21",
@@ -21,7 +26,12 @@
     "https://www.amazon.in/dp/B08KFD42GJ?tag=gadgetvill09f-21",
     "https://www.amazon.in/dp/B07W6CP4W8?tag=gadgetvill09f-21",
     "https://www.amazon.in/dp/B08444CCPT?tag=gadgetvill09f-21",
-    "https://www.amazon.in/dp/B07VG5G6DV?tag=gadgetvill09f-21"
+    "https://www.amazon.in/dp/B07VG5G6DV?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08Z74DZ4D?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08N5WRWNW?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B07HGJKJL2?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08CFSZLQ4?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08BHBQKP7?tag=gadgetvill09f-21"
   ],
   "links": [
     "https://www.amazon.in/dp/B0863TXGM3?tag=gadgetvill09f-21",
@@ -33,10 +43,15 @@
     "https://www.amazon.in/dp/B08KFD42GJ?tag=gadgetvill09f-21",
     "https://www.amazon.in/dp/B07W6CP4W8?tag=gadgetvill09f-21",
     "https://www.amazon.in/dp/B08444CCPT?tag=gadgetvill09f-21",
-    "https://www.amazon.in/dp/B07VG5G6DV?tag=gadgetvill09f-21"
+    "https://www.amazon.in/dp/B07VG5G6DV?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08Z74DZ4D?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08N5WRWNW?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B07HGJKJL2?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08CFSZLQ4?tag=gadgetvill09f-21",
+    "https://www.amazon.in/dp/B08BHBQKP7?tag=gadgetvill09f-21"
   ],
-  "total_count": 10,
-  "last_scraped": "2025-09-04T19:22:16.478624",
+  "total_count": 15,
+  "last_scraped": "2025-09-04T19:25:57.989330",
   "affiliate_tag": "gadgetvill09f-21",
   "scraper_mode": "verified_real_products",
   "note": "These are verified working Amazon India products"
