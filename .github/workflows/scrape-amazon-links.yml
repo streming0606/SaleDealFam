@@ -1,39 +1,118 @@
-name: Simple Amazon Link Generator
+name: Real Amazon Product Collector
 on:
   workflow_dispatch:
     inputs:
       max_links:
-        description: 'Number of links'
+        description: 'Number of real products to collect'
         required: true
-        default: '10'
+        default: '15'
+      collection_mode:
+        description: 'Collection mode'
+        required: true
+        default: 'verified'
+        type: choice
+        options:
+          - verified
+          - scrape_bestsellers
+          - mixed
 
 jobs:
-  generate-links:
-    name: Generate Links
+  collect-real-products:
+    name: Collect Real Amazon Products
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
       
-    - uses: actions/setup-python@v4
+    - name: 🐍 Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    - name: Generate Amazon Links
+    - name: 📦 Install Dependencies
+      run: |
+        pip install -r requirements.txt
+        
+    - name: 🔍 Collect Real Amazon Products
       env:
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
         MAX_LINKS: ${{ github.event.inputs.max_links }}
+        COLLECTION_MODE: ${{ github.event.inputs.collection_mode }}
       run: |
-        echo "Starting link generation..."
+        echo "🚀 Collecting real Amazon products..."
+        echo "🇮🇳 IST Time: $(TZ='Asia/Kolkata' date)"
+        echo "🎯 Target: $MAX_LINKS real products"
+        echo "📊 Mode: $COLLECTION_MODE"
+        
         python amazon_scraper_scheduled.py
         
-    - name: Commit Results
+    - name: 📊 Display Collection Results
       run: |
-        git config --global user.name 'Link Generator'
-        git config --global user.email 'generator@example.com'
+        if [ -f "data/amazon_links.json" ]; then
+          echo "📈 Collection Results:"
+          python -c "
+          import json
+          with open('data/amazon_links.json', 'r') as f:
+              data = json.load(f)
+              print(f'✅ Real products found: {len(data.get(\"original_products\", []))}')
+              print(f'💰 Affiliate links created: {len(data.get(\"affiliate_links\", []))}')
+              print(f'🏷️ Affiliate tag: {data.get(\"affiliate_tag\", \"Not set\")}')
+              print(f'📅 Collected: {data.get(\"last_scraped\", \"Unknown\")}')
+              
+              # Show first 3 examples
+              links = data.get('affiliate_links', [])
+              if links:
+                  print('\n🔗 Sample affiliate links:')
+                  for i, link in enumerate(links[:3], 1):
+                      print(f'{i}. {link}')
+          "
+          
+          # Show summary file
+          if [ -f "data/products_summary.txt" ]; then
+            echo -e "\n📄 Products Summary:"
+            head -20 data/products_summary.txt
+          fi
+        fi
+        
+    - name: 🧪 Test Sample Links
+      run: |
+        echo "🧪 Testing first affiliate link..."
+        python -c "
+        import json, requests
+        
+        try:
+            with open('data/amazon_links.json', 'r') as f:
+                data = json.load(f)
+                links = data.get('affiliate_links', [])
+                
+            if links:
+                test_link = links[0]
+                print(f'Testing: {test_link}')
+                
+                # Test if link redirects properly (don't follow, just check)
+                response = requests.head(test_link, timeout=5, allow_redirects=False)
+                if response.status_code in [200, 301, 302]:
+                    print('✅ Link appears valid')
+                else:
+                    print(f'⚠️ Link returned status: {response.status_code}')
+            else:
+                print('❌ No links to test')
+        except Exception as e:
+            print(f'⚠️ Test failed: {e}')
+        "
+        
+    - name: 💾 Commit Real Products
+      run: |
+        git config --local user.email "collector@github.com"
+        git config --local user.name "Real Product Collector"
         git add data/
+        
         if git diff --staged --quiet; then
-          echo "No changes to commit"
+          echo "ℹ️ No new products found"
         else
-          git commit -m "Generated ${{ github.event.inputs.max_links }} Amazon links"
+          git commit -m "🔍 Collected ${{ github.event.inputs.max_links }} real Amazon products + affiliate links"
           git push
+          echo "✅ Committed real product collection"
         fi
