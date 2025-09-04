@@ -1,118 +1,61 @@
-name: Real Amazon Product Collector
+name: Generate Verified Amazon Links
 on:
   workflow_dispatch:
     inputs:
       max_links:
-        description: 'Number of real products to collect'
+        description: 'Number of affiliate links to generate'
         required: true
         default: '15'
-      collection_mode:
-        description: 'Collection mode'
-        required: true
-        default: 'verified'
-        type: choice
-        options:
-          - verified
-          - scrape_bestsellers
-          - mixed
 
 jobs:
-  collect-real-products:
-    name: Collect Real Amazon Products
+  generate-links:
+    name: Generate Verified Links
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     
     steps:
-    - name: 📥 Checkout Repository
+    - name: Checkout
       uses: actions/checkout@v4
       
-    - name: 🐍 Set up Python 3.11
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    - name: 📦 Install Dependencies
-      run: |
-        pip install -r requirements.txt
-        
-    - name: 🔍 Collect Real Amazon Products
+    - name: Generate Affiliate Links
       env:
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
         MAX_LINKS: ${{ github.event.inputs.max_links }}
-        COLLECTION_MODE: ${{ github.event.inputs.collection_mode }}
-      run: |
-        echo "🚀 Collecting real Amazon products..."
-        echo "🇮🇳 IST Time: $(TZ='Asia/Kolkata' date)"
-        echo "🎯 Target: $MAX_LINKS real products"
-        echo "📊 Mode: $COLLECTION_MODE"
+      run: python amazon_scraper_scheduled.py
         
-        python amazon_scraper_scheduled.py
-        
-    - name: 📊 Display Collection Results
+    - name: Show Results
       run: |
-        if [ -f "data/amazon_links.json" ]; then
-          echo "📈 Collection Results:"
-          python -c "
-          import json
-          with open('data/amazon_links.json', 'r') as f:
-              data = json.load(f)
-              print(f'✅ Real products found: {len(data.get(\"original_products\", []))}')
-              print(f'💰 Affiliate links created: {len(data.get(\"affiliate_links\", []))}')
-              print(f'🏷️ Affiliate tag: {data.get(\"affiliate_tag\", \"Not set\")}')
-              print(f'📅 Collected: {data.get(\"last_scraped\", \"Unknown\")}')
-              
-              # Show first 3 examples
-              links = data.get('affiliate_links', [])
-              if links:
-                  print('\n🔗 Sample affiliate links:')
-                  for i, link in enumerate(links[:3], 1):
-                      print(f'{i}. {link}')
-          "
-          
-          # Show summary file
-          if [ -f "data/products_summary.txt" ]; then
-            echo -e "\n📄 Products Summary:"
-            head -20 data/products_summary.txt
-          fi
-        fi
+        echo "📊 Generated Files:"
+        ls -la data/
         
-    - name: 🧪 Test Sample Links
-      run: |
-        echo "🧪 Testing first affiliate link..."
+        echo -e "\n🔍 JSON Content Preview:"
+        head -20 data/amazon_links.json
+        
+        echo -e "\n📈 Summary:"
         python -c "
-        import json, requests
-        
-        try:
-            with open('data/amazon_links.json', 'r') as f:
-                data = json.load(f)
-                links = data.get('affiliate_links', [])
-                
-            if links:
-                test_link = links[0]
-                print(f'Testing: {test_link}')
-                
-                # Test if link redirects properly (don't follow, just check)
-                response = requests.head(test_link, timeout=5, allow_redirects=False)
-                if response.status_code in [200, 301, 302]:
-                    print('✅ Link appears valid')
-                else:
-                    print(f'⚠️ Link returned status: {response.status_code}')
-            else:
-                print('❌ No links to test')
-        except Exception as e:
-            print(f'⚠️ Test failed: {e}')
+        import json
+        with open('data/amazon_links.json', 'r') as f:
+            data = json.load(f)
+        print(f'✅ Total links: {len(data[\"links\"])}')
+        print(f'🏷️ Affiliate tag: {data[\"affiliate_tag\"]}')
+        print(f'📅 Generated: {data[\"last_scraped\"]}')
         "
         
-    - name: 💾 Commit Real Products
+    - name: Commit Generated Links
       run: |
-        git config --local user.email "collector@github.com"
-        git config --local user.name "Real Product Collector"
+        git config user.name "Link Generator"
+        git config user.email "generator@users.noreply.github.com"
         git add data/
         
         if git diff --staged --quiet; then
-          echo "ℹ️ No new products found"
+          echo "No changes to commit"
         else
-          git commit -m "🔍 Collected ${{ github.event.inputs.max_links }} real Amazon products + affiliate links"
+          git commit -m "Generated ${{ github.event.inputs.max_links }} verified Amazon affiliate links"
           git push
-          echo "✅ Committed real product collection"
+          echo "✅ Successfully committed affiliate links"
         fi
