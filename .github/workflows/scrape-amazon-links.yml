@@ -1,61 +1,39 @@
-name: Scheduled Amazon Link Scraper
+name: Simple Amazon Link Generator
 on:
   workflow_dispatch:
     inputs:
       max_links:
-        description: 'Number of links to generate'
+        description: 'Number of links'
         required: true
         default: '10'
 
 jobs:
-  scrape-amazon-links:
-    name: Generate Amazon Sample Links
+  generate-links:
+    name: Generate Links
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
     steps:
-    - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: 🐍 Set up Python 3.11
-      uses: actions/setup-python@v4
+    - uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    - name: 📦 Install Dependencies
-      run: |
-        echo "Installing packages..."
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        echo "✅ Dependencies installed"
-        
-    - name: 🔍 Run Amazon Link Generator
+    - name: Generate Amazon Links
       env:
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
-        MAX_LINKS: ${{ github.event.inputs.max_links || '10' }}
+        MAX_LINKS: ${{ github.event.inputs.max_links }}
       run: |
-        echo "🚀 Starting link generator..."
-        echo "🇮🇳 IST Time: $(TZ='Asia/Kolkata' date)"
+        echo "Starting link generation..."
         python amazon_scraper_scheduled.py
-        echo "✅ Generation completed"
         
-    - name: 📊 Display Results
+    - name: Commit Results
       run: |
-        if [ -f "data/amazon_links.json" ]; then
-          echo "📈 Results:"
-          python -c "
-          import json
-          with open('data/amazon_links.json', 'r') as f:
-              data = json.load(f)
-              print(f'✅ Total links: {len(data.get(\"links\", []))}')
-              print(f'📅 Generated: {data.get(\"last_scraped\", \"Unknown\")}')
-          "
-        fi
-        
-    - name: 💾 Commit Generated Links
-      run: |
-        git config --local user.email "scraper@github.com"  
-        git config --local user.name "Amazon Link Generator"
+        git config --global user.name 'Link Generator'
+        git config --global user.email 'generator@example.com'
         git add data/
-        git diff --staged --quiet || git commit -m "🔍 Generated ${{ github.event.inputs.max_links || '10' }} sample Amazon affiliate links"
-        git push
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Generated ${{ github.event.inputs.max_links }} Amazon links"
+          git push
+        fi
