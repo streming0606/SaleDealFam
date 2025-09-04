@@ -1,61 +1,39 @@
-name: Generate Verified Amazon Links
+name: Simple Amazon Link Generator
 on:
   workflow_dispatch:
     inputs:
       max_links:
-        description: 'Number of affiliate links to generate'
+        description: 'Number of links'
         required: true
-        default: '15'
+        default: '10'
 
 jobs:
   generate-links:
-    name: Generate Verified Links
+    name: Generate Links
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Setup Python
-      uses: actions/setup-python@v4
+    - uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    - name: Generate Affiliate Links
+    - name: Generate Amazon Links
       env:
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
         MAX_LINKS: ${{ github.event.inputs.max_links }}
-      run: python amazon_scraper_scheduled.py
-        
-    - name: Show Results
       run: |
-        echo "📊 Generated Files:"
-        ls -la data/
+        echo "Starting link generation..."
+        python amazon_scraper_scheduled.py
         
-        echo -e "\n🔍 JSON Content Preview:"
-        head -20 data/amazon_links.json
-        
-        echo -e "\n📈 Summary:"
-        python -c "
-        import json
-        with open('data/amazon_links.json', 'r') as f:
-            data = json.load(f)
-        print(f'✅ Total links: {len(data[\"links\"])}')
-        print(f'🏷️ Affiliate tag: {data[\"affiliate_tag\"]}')
-        print(f'📅 Generated: {data[\"last_scraped\"]}')
-        "
-        
-    - name: Commit Generated Links
+    - name: Commit Results
       run: |
-        git config user.name "Link Generator"
-        git config user.email "generator@users.noreply.github.com"
+        git config --global user.name 'Link Generator'
+        git config --global user.email 'generator@example.com'
         git add data/
-        
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "Generated ${{ github.event.inputs.max_links }} verified Amazon affiliate links"
+          git commit -m "Generated ${{ github.event.inputs.max_links }} Amazon links"
           git push
-          echo "✅ Successfully committed affiliate links"
         fi
