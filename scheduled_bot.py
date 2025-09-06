@@ -327,33 +327,17 @@ class EnhancedAffiliateBot:
 
                 
                 # Prepare product data for website
-                
-                # In your enhanced bot, update the website_product creation:
-website_product = {
-    'id': f"product_{session_type}_{i}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-    'title': self.extract_product_title(original_link),  # Enhanced title extraction
-    'image': self.get_amazon_product_image(original_link),  # Better image extraction
-    'affiliate_link': converted_link,
-    'price': self.extract_price_info(original_link),  # Try to get real price
-    'rating': product_info['rating'],
-    'category': product_info['category'],
-    'posted_date': datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
-    'session_type': session_type,
-    'featured': i <= 1  # Mark first product of each session as featured
-}
-
-
-
-
-
-
-
-
-
-
-
-
-                
+               website_product = {
+                    'id': f"product_{session_type}_{i}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    'title': product_info['title'],
+                    'image': product_info['image'],
+                    'affiliate_link': converted_link,
+                    'price': product_info['price'],
+                    'rating': product_info['rating'],
+                    'category': product_info['category'],
+                    'posted_date': datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
+                    'session_type': session_type
+                }
                 website_products.append(website_product)
 
                 # Log success
