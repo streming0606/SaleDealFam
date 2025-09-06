@@ -67,7 +67,7 @@ jobs:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # NEW: Add this secret
+        PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # NEW: Add this secret
         SESSION_TYPE: ${{ steps.session.outputs.session_type }}
       run: |
         echo "🚀 Starting enhanced ${{ steps.session.outputs.session_type }} session"
