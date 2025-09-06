@@ -24,7 +24,7 @@ CHANNEL_ID = os.environ.get('CHANNEL_ID')
 AMAZON_AFFILIATE_TAG = os.environ.get('AMAZON_TAG')
 SESSION_TYPE = os.environ.get('SESSION_TYPE', 'morning')
 WEBSITE_REPO = "streming0606/DealFamSheduler"  # Your website repository
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')  # Add this secret
+GITHUB_TOKEN = os.environ.get('PERSONAL_ACCESS_TOKEN')  # Add this secret
 
 # Session configuration for link counts
 SESSION_CONFIG = {
