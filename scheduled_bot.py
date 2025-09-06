@@ -24,7 +24,7 @@ CHANNEL_ID = os.environ.get('CHANNEL_ID')
 AMAZON_AFFILIATE_TAG = os.environ.get('AMAZON_TAG')
 SESSION_TYPE = os.environ.get('SESSION_TYPE', 'morning')
 WEBSITE_REPO = "streming0606/DealFamSheduler"  # Your website repository
-GITHUB_TOKEN = os.environ.get('PERSONAL_ACCESS_TOKEN')  # Add this secret
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')  # Add this secret
 
 # Session configuration for link counts
 SESSION_CONFIG = {
@@ -316,18 +316,9 @@ class EnhancedAffiliateBot:
                     text=channel_message,
                     parse_mode='Markdown'
                 )
-
-
-
-
-
-
-
-
-
                 
                 # Prepare product data for website
-               website_product = {
+                website_product = {
                     'id': f"product_{session_type}_{i}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                     'title': product_info['title'],
                     'image': product_info['image'],
@@ -338,8 +329,9 @@ class EnhancedAffiliateBot:
                     'posted_date': datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
                     'session_type': session_type
                 }
+                
                 website_products.append(website_product)
-
+                
                 # Log success
                 ist_time = datetime.now(pytz.timezone('Asia/Kolkata')).strftime("%I:%M:%S %p")
                 logger.info(f"✅ {session_type.upper()}: Sent link {i}/{link_count} at {ist_time} IST")
