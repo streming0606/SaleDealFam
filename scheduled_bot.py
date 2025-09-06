@@ -7,11 +7,8 @@ import asyncio
 from datetime import datetime
 import pytz
 import requests
-from bs4 import BeautifulSoup
 import base64
 import random
-import time
-from urllib.parse import urljoin
 from telegram import Bot
 from telegram.error import TelegramError
 
@@ -20,7 +17,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(_name_)
 
 # Configuration
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -30,6 +27,10 @@ SESSION_TYPE = os.environ.get('SESSION_TYPE', 'morning')
 WEBSITE_REPO = "streming0606/DealFamSheduler"
 PERSONAL_ACCESS_TOKEN = os.environ.get('PERSONAL_ACCESS_TOKEN')
 
+# SerpApi Configuration - Add these secrets to GitHub
+SERPAPI_KEY_1 = os.environ.get('SERPAPI_KEY_1')  # First account API key
+SERPAPI_KEY_2 = os.environ.get('SERPAPI_KEY_2')  # Second account API key
+
 SESSION_CONFIG = {
     'morning': {'links': 3, 'time': '10:12-10:20 AM'},
     'afternoon': {'links': 3, 'time': '1:12-1:20 PM'},
@@ -37,37 +38,29 @@ SESSION_CONFIG = {
     'night': {'links': 2, 'time': '9:12-9:20 PM'}
 }
 
-class RobustAmazonScraper:
-    def __init__(self):
+class SerpApiAmazonBot:
+    def _init_(self):
         self.bot = Bot(token=BOT_TOKEN)
         self.links = self.load_amazon_links()
         self.current_index = self.load_progress()
         
-        # Enhanced session with multiple user agents
-        self.session = requests.Session()
-        self.user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ]
+        # SerpApi keys rotation
+        self.serpapi_keys = [key for key in [SERPAPI_KEY_1, SERPAPI_KEY_2] if key]
+        self.current_api_key_index = 0
         
-    def get_random_headers(self):
-        """Get random headers to avoid detection"""
-        return {
-            'User-Agent': random.choice(self.user_agents),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
-        }
+        if not self.serpapi_keys:
+            logger.error("❌ No SerpApi keys provided!")
+            
+        logger.info(f"✅ Loaded {len(self.serpapi_keys)} SerpApi keys")
+    
+    def get_current_serpapi_key(self):
+        """Get current SerpApi key and rotate"""
+        if not self.serpapi_keys:
+            return None
+            
+        key = self.serpapi_keys[self.current_api_key_index]
+        self.current_api_key_index = (self.current_api_key_index + 1) % len(self.serpapi_keys)
+        return key
     
     def load_amazon_links(self):
         """Load Amazon links from file"""
@@ -120,381 +113,165 @@ class RobustAmazonScraper:
             logger.error(f"Error converting link: {e}")
             return url
     
-    def extract_comprehensive_product_data(self, amazon_url):
-        """Extract product data with multiple fallback methods"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"🔍 Extracting data from: {amazon_url} (Attempt {attempt + 1})")
-                
-                # Random delay between requests
-                time.sleep(random.uniform(2, 5))
-                
-                # Make request with random headers
-                headers = self.get_random_headers()
-                response = self.session.get(amazon_url, headers=headers, timeout=20)
-                
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    
-                    # Extract all product data
-                    product_data = {
-                        'title': self.extract_title_robust(soup, amazon_url),
-                        'price': self.extract_price_robust(soup),
-                        'image': self.extract_image_robust(soup, amazon_url),
-                        'rating': self.extract_rating_robust(soup),
-                        'category': self.categorize_product_robust(amazon_url, soup),
-                        'asin': self.extract_asin(amazon_url)
-                    }
-                    
-                    # Validate extracted data
-                    if self.is_valid_product_data(product_data):
-                        logger.info(f"✅ Successfully extracted: {product_data['title'][:50]}...")
-                        return product_data
-                    else:
-                        logger.warning(f"⚠️ Invalid data extracted, trying again...")
-                        
-                else:
-                    logger.warning(f"⚠️ HTTP {response.status_code}, retrying...")
-                    
-            except Exception as e:
-                logger.error(f"❌ Attempt {attempt + 1} failed: {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(random.uniform(3, 7))
-        
-        # Final fallback
-        logger.warning("🔄 Using fallback data...")
-        return self.get_enhanced_fallback_data(amazon_url)
-    
-    def extract_title_robust(self, soup, url):
-        """Extract title with multiple selectors"""
-        title_selectors = [
-            'span#productTitle',
-            'h1.a-size-large.a-spacing-none.a-color-base',
-            'h1[data-automation-id="product-title"]',
-            'h1.it-ttl',
-            '.product-title',
-            'h1.a-size-large',
-            'span.product-title-word-break',
-            '#btAsinTitle',
-            '.parseasinTitle',
-            'h1',
-            'title'
-        ]
-        
-        for selector in title_selectors:
-            try:
-                element = soup.select_one(selector)
-                if element:
-                    title = element.get_text(strip=True)
-                    # Clean and validate title
-                    title = re.sub(r'\s+', ' ', title)
-                    if len(title) > 15 and 'Amazon' not in title[:20]:
-                        return title[:120] + "..." if len(title) > 120 else title
-            except Exception as e:
-                continue
-        
-        # Fallback: Extract from meta tags
-        try:
-            meta_title = soup.find('meta', {'property': 'og:title'})
-            if meta_title and meta_title.get('content'):
-                title = meta_title['content'].strip()
-                if len(title) > 15:
-                    return title[:120] + "..." if len(title) > 120 else title
-        except:
-            pass
-        
-        # Final fallback
-        asin = self.extract_asin(url)
-        return f"Amazon Product {asin}" if asin else "Amazon Deal"
-    
-    def extract_price_robust(self, soup):
-        """Extract price with multiple selectors"""
-        price_selectors = [
-            # Primary price selectors
-            'span.a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen',
-            'span.a-price-whole',
-            'span#priceblock_ourprice',
-            'span#priceblock_saleprice',
-            'span#priceblock_dealprice',
-            'span.a-price.a-text-price .a-offscreen',
-            'span.a-price .a-offscreen',
-            '.a-price-current .a-offscreen',
-            '.a-price .a-price-whole',
-            
-            # Alternative selectors
-            'span[data-a-size="xl"] .a-offscreen',
-            'span.a-size-medium.a-color-price.priceBlockBuyingPriceString',
-            '.a-price-range .a-offscreen',
-            'span.a-color-price',
-            'span.a-text-bold',
-            
-            # Fallback selectors
-            '.price',
-            '[data-testid="price"]',
-            '.a-offscreen'
-        ]
-        
-        for selector in price_selectors:
-            try:
-                element = soup.select_one(selector)
-                if element:
-                    price_text = element.get_text(strip=True)
-                    # Clean price text
-                    price_text = re.sub(r'\s+', ' ', price_text)
-                    
-                    # Validate Indian price format
-                    if any(currency in price_text for currency in ['₹', 'Rs.', 'INR']):
-                        return price_text
-                    elif re.search(r'[\d,]+\.?\d*', price_text):
-                        numbers = re.findall(r'[\d,]+\.?\d*', price_text)
-                        if numbers:
-                            return f"₹{numbers[0]}"
-            except Exception:
-                continue
-        
-        # Try to find any number that looks like a price
-        try:
-            text_content = soup.get_text()
-            price_matches = re.findall(r'₹\s*[\d,]+(?:\.\d{2})?', text_content)
-            if price_matches:
-                return price_matches[0].strip()
-        except:
-            pass
-        
-        return "₹Special Price"
-    
-    def extract_image_robust(self, soup, url):
-        """Extract image with multiple selectors and enhance quality"""
-        image_selectors = [
-            # Primary image selectors
-            'img#landingImage',
-            'img[data-a-image-name="landingImage"]',
-            'img.a-dynamic-image',
-            'div#imgTagWrapperId img',
-            'div#main-image-container img',
-            
-            # Alternative selectors
-            'img[data-old-hires]',
-            'img[data-a-dynamic-image]',
-            'div.imgTagWrapper img',
-            'span[data-action="main-image-click"] img',
-            'div#altImages img',
-            
-            # Fallback selectors
-            'img.s-image',
-            'img[src*="images-na.ssl-images-amazon.com"]',
-            'img[src*="m.media-amazon.com"]',
-            'img[alt*="product"]',
-            'img[data-src]'
-        ]
-        
-        for selector in image_selectors:
-            try:
-                img_element = soup.select_one(selector)
-                if img_element:
-                    # Try different attributes for image URL
-                    image_url = None
-                    for attr in ['data-old-hires', 'data-a-dynamic-image', 'src', 'data-src']:
-                        if img_element.get(attr):
-                            if attr == 'data-a-dynamic-image':
-                                # Parse JSON data for highest resolution
-                                try:
-                                    import json
-                                    image_data = json.loads(img_element[attr])
-                                    if image_data:
-                                        # Get the highest resolution URL
-                                        image_url = max(image_data.keys(), key=len)
-                                        break
-                                except:
-                                    continue
-                            else:
-                                image_url = img_element[attr]
-                                break
-                    
-                    if image_url and self.is_valid_image_url(image_url):
-                        # Enhance image quality
-                        enhanced_url = self.enhance_image_quality(image_url)
-                        logger.info(f"📸 Found image: {enhanced_url[:50]}...")
-                        return enhanced_url
-            except Exception:
-                continue
-        
-        # Fallback: construct from ASIN
-        asin = self.extract_asin(url)
-        if asin:
-            fallback_urls = [
-                f"https://images-na.ssl-images-amazon.com/images/I/{asin}._AC_SX679_.jpg",
-                f"https://m.media-amazon.com/images/I/{asin}._AC_SL1500_.jpg",
-                f"https://images-na.ssl-images-amazon.com/images/I/{asin}._AC_SL1500_.jpg"
-            ]
-            
-            for fallback_url in fallback_urls:
-                if self.test_image_accessibility(fallback_url):
-                    logger.info(f"🔄 Using fallback image: {fallback_url}")
-                    return fallback_url
-        
-        return ""
-    
-    def extract_rating_robust(self, soup):
-        """Extract rating with multiple selectors"""
-        rating_selectors = [
-            'span.a-icon-alt',
-            'i.a-icon.a-icon-star span.a-icon-alt',
-            'span[data-hook="rating-out-of-text"]',
-            'div.a-row.a-spacing-small span.a-icon-alt',
-            'div#acrPopover span.a-icon-alt',
-            'span.reviewCountTextLinkedHistogram',
-            '.a-star-5 .a-icon-alt',
-            '.cr-original-review-text'
-        ]
-        
-        for selector in rating_selectors:
-            try:
-                element = soup.select_one(selector)
-                if element:
-                    rating_text = element.get_text(strip=True)
-                    if 'out of 5' in rating_text or 'stars' in rating_text:
-                        # Extract numeric rating
-                        rating_match = re.search(r'(\d+\.?\d*)', rating_text)
-                        if rating_match:
-                            rating_num = float(rating_match.group(1))
-                            stars = '⭐' * min(int(round(rating_num)), 5)
-                            return f"{stars} ({rating_num})"
-            except Exception:
-                continue
-        
-        # Default rating
-        return '⭐⭐⭐⭐⭐'
-    
-    def is_valid_image_url(self, url):
-        """Validate image URL"""
-        if not url or len(url) < 10:
-            return False
-        
-        valid_patterns = [
-            'images-na.ssl-images-amazon.com',
-            'm.media-amazon.com',
-            'images-amazon.com',
-            '.jpg', '.jpeg', '.png', '.webp'
-        ]
-        
-        return any(pattern in url.lower() for pattern in valid_patterns)
-    
-    def enhance_image_quality(self, image_url):
-        """Enhance image URL for better quality"""
-        try:
-            # Replace size parameters for higher quality
-            enhanced = re.sub(r'(\._[A-Z]{2})\d*(_)', r'\1679\2', image_url)
-            enhanced = re.sub(r'(\._AC_)[A-Z]*\d*(_)', r'\1SL1500\2', enhanced)
-            enhanced = enhanced.replace('._SS300_', '._AC_SL1500_')
-            enhanced = enhanced.replace('._SL75_', '._AC_SL1500_')
-            
-            # Ensure HTTPS
-            if enhanced.startswith('//'):
-                enhanced = 'https:' + enhanced
-            elif not enhanced.startswith('http'):
-                enhanced = 'https://' + enhanced.lstrip('/')
-                
-            return enhanced
-        except:
-            return image_url
-    
-    def test_image_accessibility(self, image_url):
-        """Test if image URL is accessible"""
-        try:
-            response = requests.head(image_url, timeout=10)
-            return response.status_code == 200
-        except:
-            return False
-    
-    def categorize_product_robust(self, url, soup):
-        """Enhanced product categorization"""
-        url_lower = url.lower()
-        
-        # URL-based categorization with more keywords
-        url_categories = {
-            'electronics': ['phone', 'mobile', 'smartphone', 'laptop', 'computer', 'tablet', 'electronics', 'gadget', 'device', 'tech', 'camera', 'headphone', 'speaker', 'smart', 'digital'],
-            'fashion': ['fashion', 'clothing', 'clothes', 'shirt', 'dress', 'shoes', 'footwear', 'watch', 'jewelry', 'bag', 'apparel', 'wear', 'style'],
-            'home': ['home', 'house', 'kitchen', 'furniture', 'decor', 'appliance', 'bedding', 'bath', 'garden', 'living'],
-            'health': ['health', 'medical', 'beauty', 'skincare', 'care', 'vitamin', 'supplement', 'cosmetic', 'wellness'],
-            'sports': ['sports', 'fitness', 'gym', 'exercise', 'outdoor', 'yoga', 'running', 'athletic'],
-            'vehicle': ['car', 'bike', 'motorcycle', 'vehicle', 'auto', 'automotive', 'parts'],
-            'books': ['book', 'kindle', 'reading', 'novel', 'textbook', 'education', 'learn']
-        }
-        
-        # Check URL first
-        for category, keywords in url_categories.items():
-            if any(keyword in url_lower for keyword in keywords):
-                return category
-        
-        # Check page content
-        if soup:
-            try:
-                page_text = soup.get_text().lower()
-                for category, keywords in url_categories.items():
-                    keyword_count = sum(1 for keyword in keywords if keyword in page_text)
-                    if keyword_count >= 2:  # At least 2 keywords match
-                        return category
-            except:
-                pass
-        
-        return 'electronics'  # Default category
-    
-    def extract_asin(self, url):
+    def extract_asin_from_url(self, url):
         """Extract ASIN from Amazon URL"""
         asin_match = re.search(r'/dp/([A-Z0-9]{10})', url)
         return asin_match.group(1) if asin_match else None
     
-    def is_valid_product_data(self, product_data):
-        """Validate that product data is meaningful"""
-        # Check if title is meaningful
-        title = product_data.get('title', '')
-        if len(title) < 15 or title.startswith('Amazon Product') or title == 'Amazon Deal':
-            return False
-        
-        # Check if we have some real data
-        price = product_data.get('price', '')
-        image = product_data.get('image', '')
-        
-        # At least title should be real
-        return len(title) > 15
+    def get_product_data_via_serpapi(self, amazon_url):
+        """Get comprehensive product data using SerpApi"""
+        try:
+            # Extract ASIN for better search
+            asin = self.extract_asin_from_url(amazon_url)
+            
+            if not asin:
+                logger.warning(f"No ASIN found in URL: {amazon_url}")
+                return self.get_fallback_product_data(amazon_url)
+            
+            # Get current API key
+            api_key = self.get_current_serpapi_key()
+            if not api_key:
+                logger.error("No SerpApi key available")
+                return self.get_fallback_product_data(amazon_url)
+            
+            logger.info(f"🔍 Fetching product data for ASIN: {asin}")
+            
+            # SerpApi Amazon Product API call
+            params = {
+                "engine": "amazon_product",
+                "asin": asin,
+                "api_key": api_key,
+                "country": "in"  # India
+            }
+            
+            response = requests.get("https://serpapi.com/search", params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return self.parse_serpapi_response(data, amazon_url)
+            else:
+                logger.warning(f"SerpApi request failed: {response.status_code}")
+                return self.get_fallback_product_data(amazon_url)
+                
+        except Exception as e:
+            logger.error(f"Error with SerpApi: {e}")
+            return self.get_fallback_product_data(amazon_url)
     
-    def get_enhanced_fallback_data(self, url):
-        """Enhanced fallback data"""
-        asin = self.extract_asin(url)
-        category = self.categorize_product_robust(url, None)
+    def parse_serpapi_response(self, data, original_url):
+        """Parse SerpApi response to extract product data"""
+        try:
+            # Extract product information from SerpApi response
+            product_info = data.get('product_result', {})
+            
+            # Title
+            title = (product_info.get('title') or 
+                    data.get('search_metadata', {}).get('amazon_product_title') or
+                    "Amazon Product")
+            
+            # Price
+            price_info = product_info.get('buybox', {})
+            price = (price_info.get('price', {}).get('value') or
+                    product_info.get('price') or
+                    "Special Price")
+            
+            if isinstance(price, (int, float)):
+                price = f"₹{price:,.0f}"
+            elif not price.startswith('₹'):
+                price = f"₹{price}"
+            
+            # Rating
+            rating_info = product_info.get('rating')
+            if rating_info:
+                rating_value = rating_info.get('rating', 0)
+                stars = '⭐' * min(int(float(rating_value)), 5)
+                rating = f"{stars} ({rating_value})"
+            else:
+                rating = '⭐⭐⭐⭐⭐'
+            
+            # Images - Get the highest quality image
+            images = product_info.get('images', [])
+            image_url = ""
+            
+            if images:
+                # Try to get the first/main image
+                if isinstance(images, list) and len(images) > 0:
+                    image_url = images.get('link', '')
+                elif isinstance(images, dict):
+                    image_url = images.get('link', '')
+            
+            # Category
+            breadcrumbs = data.get('breadcrumbs', [])
+            category = 'electronics'  # default
+            
+            if breadcrumbs:
+                for crumb in breadcrumbs:
+                    name = crumb.get('name', '').lower()
+                    category = self.categorize_from_text(name)
+                    if category != 'electronics':  # Found a specific category
+                        break
+            
+            # ASIN
+            asin = self.extract_asin_from_url(original_url)
+            
+            product_data = {
+                'title': title[:120] + "..." if len(title) > 120 else title,
+                'price': price,
+                'rating': rating,
+                'image': image_url,
+                'category': category,
+                'asin': asin
+            }
+            
+            logger.info(f"✅ SerpApi extracted: {product_data['title'][:50]}...")
+            logger.info(f"📸 Image URL: {'Available' if image_url else 'Not found'}")
+            
+            return product_data
+            
+        except Exception as e:
+            logger.error(f"Error parsing SerpApi response: {e}")
+            return self.get_fallback_product_data(original_url)
+    
+    def categorize_from_text(self, text):
+        """Categorize product from text"""
+        text_lower = text.lower()
         
-        # Try to create meaningful title from URL
-        title_parts = url.split('/')
-        for part in title_parts:
-            if len(part) > 20 and any(char.isalpha() for char in part):
-                # Clean up URL part to make it title-like
-                clean_title = re.sub(r'[^\w\s-]', ' ', part)
-                clean_title = re.sub(r'\s+', ' ', clean_title).strip().title()
-                if len(clean_title) > 15:
-                    title = clean_title[:80] + "..."
-                    break
-        else:
-            title = f"Premium {category.title()} Product"
+        categories = {
+            'electronics': ['electronic', 'phone', 'mobile', 'laptop', 'computer', 'gadget', 'camera'],
+            'fashion': ['clothing', 'fashion', 'shoes', 'watch', 'jewelry', 'apparel'],
+            'home': ['home', 'kitchen', 'furniture', 'decor', 'appliance'],
+            'health': ['health', 'beauty', 'care', 'cosmetic', 'wellness'],
+            'sports': ['sports', 'fitness', 'gym', 'outdoor', 'exercise'],
+            'vehicle': ['automotive', 'car', 'bike', 'vehicle'],
+            'books': ['books', 'kindle', 'reading']
+        }
+        
+        for category, keywords in categories.items():
+            if any(keyword in text_lower for keyword in keywords):
+                return category
+                
+        return 'electronics'
+    
+    def get_fallback_product_data(self, url):
+        """Fallback product data when SerpApi fails"""
+        asin = self.extract_asin_from_url(url)
         
         return {
-            'title': title,
+            'title': f"Premium Amazon Product {asin}" if asin else "Special Amazon Deal",
             'price': "₹Special Price",
-            'image': f"https://images-na.ssl-images-amazon.com/images/I/{asin}._AC_SL1500_.jpg" if asin else "",
-            'rating': "⭐⭐⭐⭐⭐",
-            'category': category,
+            'rating': '⭐⭐⭐⭐⭐',
+            'image': f"https://images-na.ssl-images-amazon.com/images/I/{asin}.AC_SL1500.jpg" if asin else "",
+            'category': 'electronics',
             'asin': asin
         }
     
     async def update_website_products(self, new_products):
-        """Update website with enhanced products"""
+        """Update website with SerpApi-enhanced products"""
         try:
             if not PERSONAL_ACCESS_TOKEN:
                 logger.warning("No GitHub token - skipping website update")
                 return False
             
-            # Load existing products
+            # Get existing products
             website_products = await self.get_website_products()
             
             # Add new products to beginning
@@ -504,10 +281,11 @@ class RobustAmazonScraper:
             # Keep latest 100
             website_products = website_products[:100]
             
-            # Update JSON structure
+            # Update JSON
             updated_data = {
                 "last_updated": datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
                 "total_products": len(website_products),
+                "api_source": "SerpApi Enhanced",
                 "products": website_products
             }
             
@@ -515,7 +293,7 @@ class RobustAmazonScraper:
             success = await self.commit_to_github('data/products.json', json.dumps(updated_data, indent=2))
             
             if success:
-                logger.info(f"✅ Website updated with {len(new_products)} enhanced products")
+                logger.info(f"✅ Website updated with {len(new_products)} SerpApi products")
                 return True
             else:
                 logger.error("❌ Website update failed")
@@ -567,7 +345,7 @@ class RobustAmazonScraper:
             encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
             
             commit_data = {
-                'message': f'🚀 Enhanced update: {SESSION_TYPE} session with robust product data',
+                'message': f'🚀 SerpApi update: {SESSION_TYPE} session with reliable product data',
                 'content': encoded_content,
                 'branch': 'main'
             }
@@ -600,14 +378,14 @@ class RobustAmazonScraper:
         self.save_progress()
         return selected_links
     
-    async def send_enhanced_products(self, session_type):
-        """Send enhanced products to both Telegram and website"""
+    async def send_serpapi_enhanced_products(self, session_type):
+        """Send products enhanced with SerpApi data"""
         config = SESSION_CONFIG.get(session_type, SESSION_CONFIG['morning'])
         link_count = config['links']
         time_slot = config['time']
         
-        logger.info(f"🚀 Starting enhanced {session_type} session: {time_slot} IST")
-        logger.info(f"📊 Processing {link_count} links with robust extraction")
+        logger.info(f"🚀 Starting SerpApi-enhanced {session_type} session: {time_slot} IST")
+        logger.info(f"📊 Processing {link_count} links with SerpApi")
         
         links_to_process = self.get_next_links(link_count)
         if not links_to_process:
@@ -619,28 +397,28 @@ class RobustAmazonScraper:
         
         for i, original_link in enumerate(links_to_process, 1):
             try:
-                logger.info(f"🔍 Processing product {i}/{link_count}")
+                logger.info(f"🔍 Processing product {i}/{link_count} with SerpApi")
                 
                 # Convert to affiliate link
                 affiliate_link = self.convert_amazon_link(original_link)
                 
-                # Extract comprehensive product data
-                product_data = self.extract_comprehensive_product_data(original_link)
+                # Get comprehensive product data via SerpApi
+                product_data = self.get_product_data_via_serpapi(original_link)
                 
                 # Create enhanced Telegram message
                 telegram_message = f"""🔥 DEAL FAM ALERT! 🔥
 
-📱 **{product_data['title']}**
+📱 *{product_data['title']}*
 
-💰 **Price:** {product_data['price']}
-⭐ **Rating:** {product_data['rating']}
-🏷️ **Category:** {product_data['category'].title()}
+💰 *Price:* {product_data['price']}
+⭐ *Rating:* {product_data['rating']}
+🏷 *Category:* {product_data['category'].title()}
 
-🛒 **Get Deal:** {affiliate_link}
+🛒 *Get Deal:* {affiliate_link}
 
-⏰ **Limited Time Offer - Grab Now!**
+⏰ *Limited Time Offer - Grab Now!*
 
-#DealFam #AmazonDeals #Shopping #{product_data['category'].title()}Deals #SpecialOffer"""
+#DealFam #AmazonDeals #Shopping #{product_data['category'].title()}Deals #SerpApiPowered"""
                 
                 # Send to Telegram
                 await self.bot.send_message(
@@ -649,9 +427,9 @@ class RobustAmazonScraper:
                     parse_mode='Markdown'
                 )
                 
-                # Prepare for website with enhanced data
+                # Prepare for website with SerpApi data
                 website_product = {
-                    'id': f"product_{session_type}_{i}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    'id': f"serpapi_{session_type}{i}{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                     'title': product_data['title'],
                     'image': product_data['image'],
                     'affiliate_link': affiliate_link,
@@ -660,65 +438,68 @@ class RobustAmazonScraper:
                     'category': product_data['category'],
                     'posted_date': datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
                     'session_type': session_type,
-                    'asin': product_data['asin']
+                    'asin': product_data['asin'],
+                    'data_source': 'SerpApi'
                 }
                 
                 website_products.append(website_product)
                 
                 # Log success
                 ist_time = datetime.now(pytz.timezone('Asia/Kolkata')).strftime("%I:%M:%S %p")
-                logger.info(f"✅ {session_type.upper()}: Enhanced product {i}/{link_count} at {ist_time}")
+                logger.info(f"✅ {session_type.upper()}: SerpApi product {i}/{link_count} at {ist_time}")
                 logger.info(f"📝 Title: {product_data['title'][:60]}...")
                 logger.info(f"💰 Price: {product_data['price']}")
-                logger.info(f"📸 Image: {'✅ Available' if product_data['image'] else '❌ No image'}")
+                logger.info(f"📸 Image: {'✅' if product_data['image'] else '❌'}")
                 
                 sent_count += 1
                 
-                # Wait between requests
+                # Wait between API calls to respect rate limits
                 if i < len(links_to_process):
-                    await asyncio.sleep(random.uniform(4, 8))
+                    await asyncio.sleep(random.uniform(2, 4))
                     
             except Exception as e:
                 logger.error(f"❌ Error processing product {i}: {e}")
                 continue
         
-        # Update website with enhanced products
+        # Update website with SerpApi-enhanced products
         if website_products:
             website_success = await self.update_website_products(website_products)
             if website_success:
-                logger.info(f"🌐 Website updated with {len(website_products)} enhanced products")
+                logger.info(f"🌐 Website updated with {len(website_products)} SerpApi products")
             else:
                 logger.error("❌ Website update failed")
         
         # Final summary
-        logger.info(f"🎉 {session_type.upper()} SESSION COMPLETE:")
+        logger.info(f"🎉 {session_type.upper()} SERPAPI SESSION COMPLETE:")
         logger.info(f"   ✅ Telegram: {sent_count}/{link_count} enhanced posts")
-        logger.info(f"   🌐 Website: {len(website_products)} products with robust data")
-        logger.info(f"   📊 Success Rate: {(sent_count/link_count)*100:.1f}%")
+        logger.info(f"   🌐 Website: {len(website_products)} products with reliable data")
+        logger.info(f"   🔧 API Usage: {sent_count} SerpApi calls")
         
         return sent_count
 
 # Main execution
 async def main():
-    logger.info("🚀 Starting Robust Amazon Product Scraper...")
+    logger.info("🚀 Starting SerpApi-Enhanced Amazon Bot...")
     
-    if not all([BOT_TOKEN, CHANNEL_ID, AMAZON_AFFILIATE_TAG]):
+    required_vars = [BOT_TOKEN, CHANNEL_ID, AMAZON_AFFILIATE_TAG, SERPAPI_KEY_1]
+    if not all(required_vars):
         logger.error("❌ Missing required environment variables")
         exit(1)
     
-    scraper = RobustAmazonScraper()
+    bot = SerpApiAmazonBot()
     
-    logger.info(f"📊 Total links: {len(scraper.links)}")
-    logger.info(f"📍 Current index: {scraper.current_index}")
-    logger.info(f"🎯 Target: Enhanced Telegram + Website with robust data extraction")
+    logger.info(f"📊 Total links: {len(bot.links)}")
+    logger.info(f"📍 Current index: {bot.current_index}")
+    logger.info(f"🔧 SerpApi keys loaded: {len(bot.serpapi_keys)}")
+    logger.info(f"🎯 Target: SerpApi-enhanced Telegram + Website")
     
     try:
-        sent_count = await scraper.send_enhanced_products(SESSION_TYPE)
-        logger.info(f"🎉 Enhanced session completed! {sent_count} products with robust data")
+        sent_count = await bot.send_serpapi_enhanced_products(SESSION_TYPE)
+        logger.info(f"🎉 SerpApi session completed! {sent_count} products with reliable data")
         
     except Exception as e:
-        logger.error(f"❌ Error in enhanced session: {e}")
+        logger.error(f"❌ Error in SerpApi session: {e}")
         exit(1)
 
-if __name__ == '__main__':
+if _name_ == '_main_':
     asyncio.run(main())
