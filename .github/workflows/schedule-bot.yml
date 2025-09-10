@@ -67,6 +67,7 @@ jobs:
         CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
         PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # NEW: Add this secret
+        SERP_API_KEY: ${{ secrets.SERP_API_KEY }}  # 🆕 ADD THIS LINE
         SESSION_TYPE: ${{ steps.session.outputs.session_type }}
       run: |
         echo "🚀 Starting enhanced ${{ steps.session.outputs.session_type }} session"
