@@ -18,7 +18,6 @@ on:
           - afternoon
           - evening
           - night
-
 jobs:
   run-enhanced-bot:
     name: Run Enhanced Affiliate Bot (Telegram + Website)
@@ -63,14 +62,12 @@ jobs:
         fi
         
     - name: 🤖 Run Enhanced Bot (Telegram + Website)
-  env:
-    BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-    CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-    AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
-    PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-    SERP_API_KEY: ${{ secrets.SERP_API_KEY }}  # 🆕 ADD THIS LINE
-    SESSION_TYPE: ${{ steps.session.outputs.session_type }}
-
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+        PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # NEW: Add this secret
+        SESSION_TYPE: ${{ steps.session.outputs.session_type }}
       run: |
         echo "🚀 Starting enhanced ${{ steps.session.outputs.session_type }} session"
         echo "📱 Posting to Telegram: $CHANNEL_ID"
