@@ -1,12 +1,11 @@
-name: Scheduled Telegram Affiliate Bot
+name: Enhanced Telegram + Website Bot
 on:
   schedule:
-    # 4 daily sessions with specific link counts
+    # 4 daily sessions with website updates
     - cron: '42 4 * * *'   # 10:12 AM IST (4:42 UTC) - 3 links
     - cron: '42 7 * * *'   # 1:12 PM IST (7:42 UTC) - 3 links  
     - cron: '42 12 * * *'  # 6:12 PM IST (12:42 UTC) - 2 links
     - cron: '42 15 * * *'  # 9:12 PM IST (15:42 UTC) - 2 links
-  # Allow manual trigger for testing
   workflow_dispatch:
     inputs:
       session_type:
@@ -21,13 +20,13 @@ on:
           - night
 
 jobs:
-  run-affiliate-bot:
-    name: Run Scheduled Affiliate Bot Session
+  run-enhanced-bot:
+    name: Run Enhanced Affiliate Bot (Telegram + Website)
     runs-on: ubuntu-latest
-    timeout-minutes: 25  # Extended timeout for link processing
+    timeout-minutes: 25
     
     steps:
-    - name: 📥 Checkout Repository
+    - name: 📥 Checkout Repository  
       uses: actions/checkout@v4
       
     - name: 🐍 Set up Python 3.11
@@ -63,25 +62,21 @@ jobs:
           fi
         fi
         
-    - name: 🤖 Run Scheduled Bot Session
-      env:
-        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-        AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
-        SESSION_TYPE: ${{ steps.session.outputs.session_type }}
+    - name: 🤖 Run Enhanced Bot (Telegram + Website)
+  env:
+    BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+    CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+    AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+    PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+    SERP_API_KEY: ${{ secrets.SERP_API_KEY }}  # 🆕 ADD THIS LINE
+    SESSION_TYPE: ${{ steps.session.outputs.session_type }}
+
       run: |
-        echo "🚀 Starting ${{ steps.session.outputs.session_type }} session at $(date)"
+        echo "🚀 Starting enhanced ${{ steps.session.outputs.session_type }} session"
+        echo "📱 Posting to Telegram: $CHANNEL_ID"
+        echo "🌐 Updating website: streming0606/DealFamSheduler"
         echo "🇮🇳 Current IST time: $(TZ='Asia/Kolkata' date)"
         
         python scheduled_bot.py
         
-        echo "✅ Bot session finished at $(date)"
-        echo "🇮🇳 End time IST: $(TZ='Asia/Kolkata' date)"
-        
-    - name: 💾 Commit Progress Updates
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add data/
-        git diff --staged --quiet || git commit -m "Update progress: ${{ steps.session.outputs.session_type }} session completed"
-        git push
+        echo "✅ Enhanced session finished at $(date)"
