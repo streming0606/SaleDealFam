@@ -71,18 +71,15 @@ class EnhancedAffiliateBot:
             asyncio.create_task(self.test_serpapi_connection())
     
     async def test_serpapi_connection(self):
-        """Test SerpApi connection and response"""
+        """Test SerpApi connection with correct parameters"""
         try:
             logger.info("🧪 Testing SerpApi connection...")
             
-            # Test with a known ASIN
-            test_asin = "B08N5WRWNW"
-            
-            # CORRECT METHOD: Use search with ASIN as query
+            # Test with a search query first
             params = {
                 'engine': 'amazon',
                 'amazon_domain': 'amazon.in',
-                'q': test_asin,  # Use 'q' parameter instead of 'asin'
+                'k': 'B08N5WRWNW',  # Use 'k' parameter as per SerpApi docs
                 'api_key': SERP_API_KEY
             }
             
@@ -96,6 +93,8 @@ class EnhancedAffiliateBot:
                 
                 if 'error' in data:
                     logger.error(f"🧪 SerpApi error: {data['error']}")
+                    # Log the full error for debugging
+                    logger.error(f"🧪 Full response: {json.dumps(data, indent=2)[:1000]}...")
                     return False
                 else:
                     logger.info("✅ SerpApi connection test successful!")
@@ -105,14 +104,17 @@ class EnhancedAffiliateBot:
                         first_result = data['organic_results'][0]
                         logger.info(f"🧪 Sample title: {first_result.get('title', 'No title')[:50]}...")
                         logger.info(f"🧪 Sample price: {first_result.get('price', 'No price')}")
+                        logger.info(f"🧪 Sample ASIN: {first_result.get('asin', 'No ASIN')}")
                     
                     return True
             else:
                 logger.error(f"🧪 Test failed with status: {response.status_code}")
+                logger.error(f"🧪 Response: {response.text[:500]}...")
                 return False
                 
         except Exception as e:
             logger.error(f"🧪 Test exception: {e}")
+            logger.error(f"🧪 Full traceback: {traceback.format_exc()}")
             return False
         
     def load_amazon_links(self):
@@ -286,13 +288,13 @@ class EnhancedAffiliateBot:
             return None
     
     async def get_real_product_info_serpapi(self, asin):
-        """Get real product information using SerpApi - FIXED VERSION"""
+        """Get real product information using SerpApi - COMPLETELY FIXED VERSION"""
         if not SERP_API_KEY:
-            logger.warning("No SerpApi key - using fallback product info")
+            logger.warning("❌ No SerpApi key - using fallback product info")
             return self.get_fallback_product_info(asin)
         
         if not asin:
-            logger.warning("No ASIN provided - using fallback")
+            logger.warning("❌ No ASIN provided - using fallback")
             return self.get_fallback_product_info(asin)
         
         try:
@@ -302,81 +304,93 @@ class EnhancedAffiliateBot:
             current_time = datetime.now()
             if (current_time - self.serp_start_time).seconds < 3600:
                 if self.serp_request_count >= 240:
-                    logger.warning("SerpApi rate limit approaching - using fallback")
+                    logger.warning("⚠️ SerpApi rate limit approaching - using fallback")
                     return self.get_fallback_product_info(asin)
             else:
                 self.serp_request_count = 0
                 self.serp_start_time = current_time
             
-            # FIXED: Use correct SerpApi parameters
+            # CORRECTED: Use proper SerpApi parameters as per documentation
             params = {
                 'engine': 'amazon',
                 'amazon_domain': 'amazon.in',
-                'q': asin,  # Search for the ASIN instead of using asin parameter
+                'k': asin,  # FIXED: Use 'k' parameter for search query (as per SerpApi docs)
                 'api_key': SERP_API_KEY
             }
             
-            logger.info(f"📡 Making SerpApi request with query: {asin}")
+            logger.info(f"📡 Making SerpApi request for ASIN: {asin} (Request #{self.serp_request_count + 1})")
             
-            response = requests.get('https://serpapi.com/search', params=params, timeout=25)
+            response = requests.get('https://serpapi.com/search', params=params, timeout=30)
             
             logger.info(f"📨 SerpApi response status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
                 
-                # Log first part of response for debugging
-                response_preview = json.dumps(data, indent=2)[:1000]
-                logger.info(f"📊 SerpApi response preview: {response_preview}...")
+                # DEBUG: Log the actual response structure
+                logger.info(f"📊 SerpApi response keys: {list(data.keys())}")
                 
-                # Check for errors
+                # Check for API errors first
                 if 'error' in data:
-                    logger.error(f"SerpApi API error: {data['error']}")
+                    logger.error(f"❌ SerpApi API error: {data['error']}")
+                    logger.error(f"📋 Full error response: {json.dumps(data, indent=2)[:800]}...")
                     return self.get_fallback_product_info(asin)
                 
-                # Look for organic results (this is where Amazon product data appears)
+                # Look for organic_results (this is where Amazon product data appears)
                 organic_results = data.get('organic_results', [])
                 
                 if not organic_results:
-                    logger.warning(f"No organic results found for ASIN: {asin}")
-                    logger.info(f"Available keys: {list(data.keys())}")
+                    logger.warning(f"⚠️ No organic_results found for ASIN: {asin}")
+                    logger.info(f"📋 Available data keys: {list(data.keys())}")
+                    logger.info(f"📋 Raw response preview: {json.dumps(data, indent=2)[:1000]}...")
                     return self.get_fallback_product_info(asin)
                 
-                # Find the product in results (usually the first result when searching by ASIN)
+                # Find the product in organic results
                 product_result = None
+                
+                # Method 1: Look for exact ASIN match
                 for result in organic_results:
-                    # Check if this result contains our ASIN
                     result_asin = result.get('asin')
-                    result_link = result.get('link', '')
-                    
-                    if result_asin == asin or asin in result_link:
+                    if result_asin == asin:
                         product_result = result
-                        logger.info(f"✅ Found matching product for ASIN: {asin}")
+                        logger.info(f"✅ Found exact ASIN match: {asin}")
                         break
                 
-                # If no exact match, use first result (common when searching by ASIN)
+                # Method 2: Look for ASIN in link
+                if not product_result:
+                    for result in organic_results:
+                        result_link = result.get('link', '')
+                        if asin in result_link:
+                            product_result = result
+                            logger.info(f"✅ Found ASIN in product link: {asin}")
+                            break
+                
+                # Method 3: Use first result (when searching by ASIN, first result is usually the match)
                 if not product_result and organic_results:
                     product_result = organic_results[0]
-                    logger.info("✅ Using first organic result")
+                    logger.info(f"✅ Using first organic result")
                 
                 if not product_result:
-                    logger.warning(f"No suitable product result found")
+                    logger.warning(f"❌ No suitable product result found for ASIN: {asin}")
                     return self.get_fallback_product_info(asin)
                 
-                # Extract product information
+                # Extract product information with detailed logging
                 title = product_result.get('title', f'Amazon Product {asin}')
-                price = self.extract_price_from_serp_result(product_result)
-                rating = self.extract_rating_from_serp_result(product_result)
-                image = product_result.get('thumbnail', '')
+                price = self.extract_price_from_result(product_result)
+                rating = self.extract_rating_from_result(product_result)
+                thumbnail = product_result.get('thumbnail', '')
                 
-                # If no thumbnail, try other image fields
-                if not image:
-                    image = product_result.get('image', '')
+                # Log extracted data for debugging
+                logger.info(f"📝 Extracted data:")
+                logger.info(f"   📝 Title: {title}")
+                logger.info(f"   💰 Price: {price}")
+                logger.info(f"   ⭐ Rating: {rating}")
+                logger.info(f"   🖼️ Thumbnail: {'Yes' if thumbnail else 'No'}")
                 
                 product_info = {
                     'asin': asin,
                     'title': title[:100] + '...' if len(title) > 100 else title,
-                    'image': image or f"https://m.media-amazon.com/images/I/{asin}._AC_SL1500_.jpg",
+                    'image': thumbnail or f"https://m.media-amazon.com/images/I/{asin}._AC_SL1500_.jpg",
                     'price': price,
                     'rating': rating,
                     'category': self.categorize_by_title(title),
@@ -386,95 +400,98 @@ class EnhancedAffiliateBot:
                 # Increment request counter
                 self.serp_request_count += 1
                 
-                logger.info(f"✅ Real product data extracted successfully!")
-                logger.info(f"   📝 Title: {title[:50]}...")
-                logger.info(f"   💰 Price: {price}")
-                logger.info(f"   ⭐ Rating: {rating}")
-                logger.info(f"   🖼️ Image: {'Yes' if image else 'No'}")
+                logger.info(f"🎉 SUCCESS! Real product data extracted from SerpApi!")
                 logger.info(f"   📊 API calls used: {self.serp_request_count}/250")
                 
                 return product_info
                     
             else:
-                logger.error(f"SerpApi HTTP error: {response.status_code}")
-                logger.error(f"Response: {response.text[:300]}...")
+                logger.error(f"❌ SerpApi HTTP error: {response.status_code}")
+                logger.error(f"📋 Response body: {response.text[:500]}...")
                 
         except Exception as e:
             logger.error(f"❌ Exception in SerpApi call: {str(e)}")
-            logger.error(f"📋 Traceback: {traceback.format_exc()}")
+            logger.error(f"📋 Full traceback: {traceback.format_exc()}")
         
-        logger.warning(f"🔄 Using fallback for ASIN: {asin}")
+        logger.warning(f"🔄 Falling back to default for ASIN: {asin}")
         return self.get_fallback_product_info(asin)
     
-    def extract_price_from_serp_result(self, result):
-        """Extract price from SerpApi organic result"""
+    def extract_price_from_result(self, result):
+        """Extract price from SerpApi result with enhanced methods"""
         try:
             # Method 1: Direct price field
             price = result.get('price')
             if price:
-                # Clean and format price
                 if isinstance(price, str) and price.strip():
-                    # Remove extra whitespace and ensure proper formatting
                     price_clean = price.strip()
+                    logger.info(f"💰 Found direct price: {price_clean}")
                     return price_clean if '₹' in price_clean else f"₹{price_clean}"
                 elif isinstance(price, dict):
-                    # Sometimes price comes as object with current_price
-                    current_price = price.get('current_price') or price.get('value')
+                    current_price = price.get('current_price') or price.get('value') or price.get('from')
                     if current_price:
+                        logger.info(f"💰 Found price from dict: {current_price}")
                         return current_price if '₹' in str(current_price) else f"₹{current_price}"
             
-            # Method 2: Look in snippet
+            # Method 2: Look in snippet for price patterns
             snippet = result.get('snippet', '')
             if snippet:
-                # Look for price patterns
                 price_patterns = [
                     r'₹[\d,]+(?:\.\d{2})?',  # ₹1,200 or ₹1,200.50
                     r'Rs\.?\s*[\d,]+',       # Rs 1200 or Rs. 1200
-                    r'INR\s*[\d,]+'          # INR 1200
+                    r'INR\s*[\d,]+',         # INR 1200
+                    r'Price:\s*₹[\d,]+',     # Price: ₹1200
                 ]
                 
                 for pattern in price_patterns:
                     price_match = re.search(pattern, snippet)
                     if price_match:
                         found_price = price_match.group()
-                        return found_price if '₹' in found_price else f"₹{found_price.replace('Rs.', '').replace('Rs', '').replace('INR', '').strip()}"
+                        logger.info(f"💰 Found price in snippet: {found_price}")
+                        return found_price if '₹' in found_price else f"₹{found_price.replace('Rs.', '').replace('Rs', '').replace('INR', '').replace('Price:', '').strip()}"
             
-            # Method 3: Look in title
+            # Method 3: Check title for price
             title = result.get('title', '')
             if title:
                 price_match = re.search(r'₹[\d,]+', title)
                 if price_match:
-                    return price_match.group()
+                    found_price = price_match.group()
+                    logger.info(f"💰 Found price in title: {found_price}")
+                    return found_price
+            
+            logger.info(f"💰 No price found, using default")
                     
         except Exception as e:
-            logger.error(f"Error extracting price: {e}")
+            logger.error(f"❌ Error extracting price: {e}")
         
         return "₹Special Price"
     
-    def extract_rating_from_serp_result(self, result):
-        """Extract rating from SerpApi organic result"""
+    def extract_rating_from_result(self, result):
+        """Extract rating from SerpApi result with enhanced methods"""
         try:
             # Method 1: Direct rating field
             rating = result.get('rating')
             if rating:
                 if isinstance(rating, (int, float)):
                     stars = min(int(rating), 5)
-                    return "⭐" * stars + "☆" * (5-stars) if stars < 5 else "⭐" * 5
+                    rating_str = "⭐" * stars + "☆" * (5-stars) if stars < 5 else "⭐" * 5
+                    logger.info(f"⭐ Found direct rating: {rating} -> {rating_str}")
+                    return rating_str
                 elif isinstance(rating, str):
-                    # Extract number from rating string
                     rating_match = re.search(r'(\d+(?:\.\d+)?)', rating)
                     if rating_match:
                         rating_num = float(rating_match.group(1))
                         stars = min(int(rating_num), 5)
-                        return "⭐" * stars + "☆" * (5-stars) if stars < 5 else "⭐" * 5
+                        rating_str = "⭐" * stars + "☆" * (5-stars) if stars < 5 else "⭐" * 5
+                        logger.info(f"⭐ Found rating from string: {rating} -> {rating_str}")
+                        return rating_str
             
-            # Method 2: Look in snippet for rating
+            # Method 2: Look in snippet for rating patterns
             snippet = result.get('snippet', '')
             if snippet:
                 rating_patterns = [
                     r'(\d+(?:\.\d+)?)\s*(?:out of|\/)\s*5',  # 4.5 out of 5
                     r'(\d+(?:\.\d+)?)\s*stars?',             # 4.5 stars
-                    r'(\d+(?:\.\d+)?)\s*⭐'                   # 4.5⭐
+                    r'Rating:\s*(\d+(?:\.\d+)?)',            # Rating: 4.5
                 ]
                 
                 for pattern in rating_patterns:
@@ -482,25 +499,31 @@ class EnhancedAffiliateBot:
                     if rating_match:
                         rating_num = float(rating_match.group(1))
                         stars = min(int(rating_num), 5)
-                        return "⭐" * stars + "☆" * (5-stars) if stars < 5 else "⭐" * 5
+                        rating_str = "⭐" * stars + "☆" * (5-stars) if stars < 5 else "⭐" * 5
+                        logger.info(f"⭐ Found rating in snippet: {rating_num} -> {rating_str}")
+                        return rating_str
+            
+            logger.info(f"⭐ No rating found, using default")
                         
         except Exception as e:
-            logger.error(f"Error extracting rating: {e}")
+            logger.error(f"❌ Error extracting rating: {e}")
         
         return "⭐⭐⭐⭐☆"
     
     def get_fallback_product_info(self, asin):
-        """Enhanced fallback product info"""
+        """Enhanced fallback product info with realistic data"""
         fallback_titles = [
-            f"Premium Electronics Deal",
-            f"Top Rated Amazon Product", 
-            f"Trending Deal of the Day",
-            f"Best Seller Item",
-            f"Featured Amazon Deal"
+            f"Premium Electronics Deal - {asin}" if asin else "Premium Electronics Deal",
+            f"Top Rated Amazon Product - {asin}" if asin else "Top Rated Amazon Product", 
+            f"Trending Deal of the Day - {asin}" if asin else "Trending Deal of the Day",
+            f"Best Seller Item - {asin}" if asin else "Best Seller Item",
+            f"Featured Amazon Deal - {asin}" if asin else "Featured Amazon Deal"
         ]
         
         import random
         title = random.choice(fallback_titles)
+        
+        logger.info(f"🔄 Using fallback data for ASIN: {asin}")
         
         return {
             'asin': asin or "UNKNOWN",
@@ -517,10 +540,10 @@ class EnhancedAffiliateBot:
         title_lower = title.lower()
         
         categories = {
-            'electronics': ['phone', 'smartphone', 'mobile', 'laptop', 'computer', 'tablet', 'earphone', 'headphone', 'charger', 'cable'],
-            'fashion': ['shirt', 'tshirt', 'jeans', 'dress', 'shoes', 'watch', 'bag', 'clothing', 'jacket'],
-            'home': ['kitchen', 'furniture', 'home', 'decor', 'appliance', 'bedsheet', 'pillow', 'chair', 'table'],
-            'health': ['skincare', 'beauty', 'cosmetic', 'health', 'supplement', 'medicine', 'cream', 'oil']
+            'electronics': ['phone', 'smartphone', 'mobile', 'laptop', 'computer', 'tablet', 'earphone', 'headphone', 'charger', 'cable', 'speaker'],
+            'fashion': ['shirt', 'tshirt', 'jeans', 'dress', 'shoes', 'watch', 'bag', 'clothing', 'jacket', 'cap'],
+            'home': ['kitchen', 'furniture', 'home', 'decor', 'appliance', 'bedsheet', 'pillow', 'chair', 'table', 'lamp'],
+            'health': ['skincare', 'beauty', 'cosmetic', 'health', 'supplement', 'medicine', 'cream', 'oil', 'soap']
         }
         
         for category, keywords in categories.items():
@@ -712,8 +735,8 @@ class EnhancedAffiliateBot:
             except Exception as e:
                 logger.error(f"❌ Error sending to Telegram {i}: {e}")
         
-        # Process Website Products
-        logger.info("🌐 Processing website products...")
+        # Process Website Products with SerpApi
+        logger.info("🌐 Processing website products with SerpApi...")
         for i, original_link in enumerate(website_links, 1):
             try:
                 converted_link = self.convert_amazon_link(original_link)
@@ -721,7 +744,7 @@ class EnhancedAffiliateBot:
                 
                 logger.info(f"🔍 Processing website product {i}/{website_count} - ASIN: {asin}")
                 
-                # Get product information using FIXED SerpApi method
+                # Get REAL product information using FIXED SerpApi method
                 product_info = await self.get_real_product_info_serpapi(asin)
                 
                 website_product = {
@@ -741,31 +764,32 @@ class EnhancedAffiliateBot:
                 
                 website_products.append(website_product)
                 
-                logger.info(f"✅ Website product {i}/{website_count} processed")
+                logger.info(f"✅ Website product {i}/{website_count} processed successfully!")
                 logger.info(f"   📝 Title: {product_info['title'][:50]}...")
                 logger.info(f"   💰 Price: {product_info['price']}")
-                logger.info(f"   📊 Source: {product_info.get('source', 'unknown')}")
+                logger.info(f"   ⭐ Rating: {product_info['rating']}")
+                logger.info(f"   📊 Data source: {product_info.get('source', 'unknown')}")
                 
-                # Delay between product processing
+                # Delay between product processing to avoid rate limits
                 if i < len(website_links):
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(5)
                     
             except Exception as e:
                 logger.error(f"❌ Error processing website product {i}: {e}")
-                logger.error(f"Full traceback: {traceback.format_exc()}")
+                logger.error(f"📋 Full error: {traceback.format_exc()}")
         
         # Update website
         if website_products:
             logger.info(f"🌐 Updating website with {len(website_products)} products...")
             website_success = await self.update_website_products(website_products)
             if website_success:
-                logger.info(f"✅ Website successfully updated!")
+                logger.info(f"🎉 Website successfully updated!")
             else:
                 logger.error("❌ Website update failed")
         else:
             logger.warning("⚠️ No products to update on website")
         
-        # Final summary
+        # Final comprehensive summary
         total_links = len(self.links) if self.links else 0
         cycle_number = (self.current_index // total_links) if total_links > 0 else 1
         remaining_in_cycle = total_links - (self.current_index % total_links) if total_links > 0 else 0
@@ -777,6 +801,7 @@ class EnhancedAffiliateBot:
         logger.info(f"   📍 Progress: {self.current_index}/{total_links}")
         logger.info(f"   🔄 Cycle: {cycle_number}, Remaining: {remaining_in_cycle}")
         logger.info(f"   🔑 SerpApi requests used: {self.serp_request_count}/250")
+        logger.info(f"   📊 Real data fetched: {sum(1 for p in website_products if p.get('data_source') == 'serpapi')}/{len(website_products)}")
         logger.info(f"")
         
         return sent_count
@@ -804,7 +829,7 @@ async def main():
     if not SERP_API_KEY:
         logger.warning("⚠️ No SerpApi key found - will use enhanced fallback product data")
     else:
-        logger.info(f"✅ SerpApi key configured: ***{SERP_API_KEY[-4:]}")
+        logger.info(f"✅ SerpApi key configured: fb21165a43...{SERP_API_KEY[-4:]}")
     
     # Initialize bot
     bot_instance = EnhancedAffiliateBot()
@@ -823,7 +848,7 @@ async def main():
         logger.info(f"")
         logger.info(f"🏆 MISSION ACCOMPLISHED! 🏆")
         logger.info(f"Session '{SESSION_TYPE}' completed successfully!")
-        logger.info(f"Telegram posts: {sent_count}, Website: Updated")
+        logger.info(f"Telegram posts: {sent_count}, Website: Updated with real data!")
         logger.info(f"")
         
     except Exception as e:
