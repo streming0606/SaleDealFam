@@ -566,7 +566,7 @@ class EnhancedAffiliateBot:
                 website_products.insert(0, product)
             
             # Keep only latest 50 products
-            website_products = website_products[:50]
+           # website_products = website_products[:50]
             
             updated_data = {
                 "last_updated": datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
