@@ -14,8 +14,9 @@ import traceback
 WEBSITE_REPO = "streming0606/DealFamSheduler"  # GitHub repo for your website
 GITHUB_TOKEN = os.environ.get('PERSONAL_ACCESS_TOKEN')
 SERP_API_KEY = os.environ.get('SERP_API_KEY')
+AMAZON_AFFILIATE_TAG = os.environ.get('AMAZON_TAG')  # Your affiliate tag
 SESSION_TYPE = os.environ.get('SESSION_TYPE', 'morning')
-PRODUCTS_PER_RUN = int(os.environ.get('PRODUCTS_PER_RUN', 2))  # Products per session (adjust as needed)
+PRODUCTS_PER_RUN = int(os.environ.get('PRODUCTS_PER_RUN', 2))  # Products per session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("WebsiteBot")
@@ -25,6 +26,7 @@ class WebsiteAffiliateBot:
         self.links = self.load_amazon_links()
         self.current_index = self.load_progress()
         logger.info(f"Loaded {len(self.links)} Amazon links, starting from index {self.current_index}")
+        logger.info(f"Affiliate Tag: {AMAZON_AFFILIATE_TAG if AMAZON_AFFILIATE_TAG else 'NOT SET'}")
 
     def load_amazon_links(self):
         path = 'data/amazon_links.json'
@@ -81,6 +83,34 @@ class WebsiteAffiliateBot:
             'data/progress.json',
             json.dumps(progress_data, indent=2)
         )
+
+    def convert_amazon_link(self, url):
+        """Convert Amazon link to include affiliate tag"""
+        try:
+            if not AMAZON_AFFILIATE_TAG:
+                logger.warning("No affiliate tag configured - using original link")
+                return url
+            
+            # Remove existing affiliate tags
+            url = re.sub(r'[?&]tag=[^&]*', '', url)
+            
+            # Extract ASIN and create clean link
+            asin_match = re.search(r'/dp/([A-Z0-9]{10})', url)
+            if asin_match:
+                asin = asin_match.group(1)
+                converted = f"https://www.amazon.in/dp/{asin}?tag={AMAZON_AFFILIATE_TAG}"
+                logger.info(f"Converted link: {url[:50]}... -> {converted}")
+                return converted
+            
+            # Fallback: append tag
+            separator = '&' if '?' in url else '?'
+            converted = f"{url}{separator}tag={AMAZON_AFFILIATE_TAG}"
+            logger.info(f"Appended tag to link: {converted[:80]}...")
+            return converted
+            
+        except Exception as e:
+            logger.error(f"Error converting link: {e}")
+            return url
 
     def extract_asin_from_url(self, url):
         match = re.search(r'/dp/([A-Z0-9]{10})', url)
@@ -202,11 +232,15 @@ class WebsiteAffiliateBot:
         for link in next_links:
             asin = self.extract_asin_from_url(link)
             info = await self.get_real_product_info_serpapi(asin)
+            
+            # Convert the link with affiliate tag
+            converted_link = self.convert_amazon_link(link)
+            
             product = {
                 'id': f"product_{SESSION_TYPE}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                 'title': info['title'],
                 'image': info['image'],
-                'affiliate_link': link,
+                'affiliate_link': converted_link,
                 'price': info['price'],
                 'rating': info['rating'],
                 'category': info['category'],
